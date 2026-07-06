@@ -14,7 +14,14 @@ function shouldCreateCompensation(ticket: typeof exceptionTickets.$inferSelect) 
 }
 
 function movementTypeForTicket(ticket: typeof exceptionTickets.$inferSelect) {
-  if (ticket.category === 'quality_control') return 'unlock_after_qc_execution';
+  if (ticket.category === 'quality_control') {
+    if (ticket.exceptionType === 'quantity_mismatch') return 'qc_recount_and_release';
+    if (ticket.exceptionType === 'appearance_damage') return 'qc_return_supplier';
+    if (ticket.exceptionType === 'spec_mismatch') return 'qc_repurchase';
+    if (ticket.exceptionType === 'label_error') return 'qc_relabel_release';
+    if (ticket.exceptionType === 'batch_exception') return 'qc_batch_downgrade';
+    return 'unlock_after_qc_execution';
+  }
   if (ticket.exceptionType === 'rejected') return 'return_to_stock';
   if (ticket.exceptionType === 'address_error') return 'reship_address_fix';
   if (ticket.exceptionType === 'lost') return 'reship_after_lost';

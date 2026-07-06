@@ -48,6 +48,7 @@
 | 分级审批规则可配置 | 已满足 | `approval_rules` + 页面支持新增、编辑、启停、删除 |
 | 审批并发冲突 | 已满足 | 版本条件更新；旧版本提交返回 409 |
 | 上报人不能自审 | 已满足 | `POST /api/approvals` 后端校验 |
+| 审批人待办范围 | 已满足 | `/approvals?actorId=` 按分配审批人、角色层级、自审限制过滤 |
 | 拒绝后重提 | 已满足 | `POST /api/tickets/[id]/resubmit` |
 | 重提次数上限 | 已满足 | 超限后 `auto_rejected` |
 | 分级审批顺序流转 | 已满足 | 高金额工单先一级审批，一级通过后流转二级，二级通过后执行 |
@@ -55,7 +56,7 @@
 | 审批人禁用兜底 | 已满足 | tick 自动转交同层级可用审批人，缺省转管理员 |
 | 事务一致性 | 已满足 | Neon transactional driver + `db.transaction` |
 | 赔付方向字段 | 已满足 | `compensation_records.direction` |
-| 库存/赔付可追溯审批记录 | 已满足 | `compensation_records.approval_record_id` 与 `inventory_movements.approval_record_id` |
+| 库存/赔付可追溯审批记录 | 已满足 | `compensation_records.approval_record_id` 与 `inventory_movements.approval_record_id`，详情页/API 展示关联 |
 | 工单列表筛选分页 | 已满足 | 状态、来源、类型、运单号、审批人，分页 |
 | 即将超时提示 | 已满足 | 列表 SQL 计算 `isDueSoon` |
 | 200 条种子数据 | 已满足 | `scripts/seed.ts` 生成 200 条 |

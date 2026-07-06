@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { approvalRecords, compensationRecords, exceptionTickets, scanRecords, waybillSnapshots } from '@/lib/db/schema';
+import { approvalRecords, compensationRecords, exceptionTickets, inventoryMovements, scanRecords, waybillSnapshots } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
@@ -16,6 +16,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const approvals = await db.select().from(approvalRecords).where(eq(approvalRecords.ticketId, id));
   const scans = await db.select().from(scanRecords).where(eq(scanRecords.ticketId, id));
   const compensations = await db.select().from(compensationRecords).where(eq(compensationRecords.ticketId, id));
+  const movements = await db.select().from(inventoryMovements).where(eq(inventoryMovements.ticketId, id));
 
-  return NextResponse.json({ ticket, snapshot, approvals, scans, compensations });
+  return NextResponse.json({ ticket, snapshot, approvals, scans, compensations, movements });
 }

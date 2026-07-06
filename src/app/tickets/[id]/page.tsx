@@ -2,7 +2,7 @@ import { AppShell } from '@/components/app-shell';
 import { Badge, Card } from '@/components/ui';
 import { TicketActions } from '@/components/ticket-actions';
 import { db } from '@/lib/db';
-import { approvalRecords, compensationRecords, exceptionTickets, scanRecords, waybillSnapshots } from '@/lib/db/schema';
+import { approvalRecords, compensationRecords, exceptionTickets, inventoryMovements, scanRecords, waybillSnapshots } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
@@ -15,6 +15,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   const approvals = await db.select().from(approvalRecords).where(eq(approvalRecords.ticketId, id));
   const scans = await db.select().from(scanRecords).where(eq(scanRecords.ticketId, id));
   const compensations = await db.select().from(compensationRecords).where(eq(compensationRecords.ticketId, id));
+  const movements = await db.select().from(inventoryMovements).where(eq(inventoryMovements.ticketId, id));
   return (
     <AppShell>
       <div className="mb-4 flex items-center gap-3"><h1 className="text-2xl font-semibold">{ticket.ticketNo}</h1><Badge>{ticket.status}</Badge></div>
@@ -62,6 +63,16 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
           </div>
         ))}
         {!compensations.length && <div className="text-sm text-[#667780]">暂无赔付记录</div>}
+      </Card>
+      <Card className="mt-4">
+        <h2 className="mb-3 font-semibold">库存流水</h2>
+        {movements.map((item) => (
+          <div key={item.id} className="border-t py-2 text-sm first:border-t-0">
+            <div>{item.skuCode} · {item.batchNo} · {item.movementType} · {item.quantity}</div>
+            <div className="text-xs text-[#88979e]">审批记录 {item.approvalRecordId}</div>
+          </div>
+        ))}
+        {!movements.length && <div className="text-sm text-[#667780]">暂无库存流水</div>}
       </Card>
     </AppShell>
   );

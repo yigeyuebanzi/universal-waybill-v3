@@ -18,7 +18,12 @@ export default async function InventoryPage() {
       </Card>
       <Card className="mt-4">
         <h2 className="mb-3 font-semibold">库存流水</h2>
-        {movements.map((m) => <div key={m.id} className="border-t py-2 text-sm first:border-t-0">{m.skuCode} {m.batchNo} {m.movementType} {m.quantity}</div>)}
+        {movements.map((m) => (
+          <div key={m.id} className="border-t py-2 text-sm first:border-t-0">
+            <div>{m.skuCode} {m.batchNo} {m.movementType} {m.quantity}</div>
+            <div className="text-xs text-[#88979e]">工单 {m.ticketId || '-'} · 审批记录 {m.approvalRecordId || '-'}</div>
+          </div>
+        ))}
       </Card>
     </AppShell>
   );
