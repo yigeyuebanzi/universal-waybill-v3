@@ -8,14 +8,26 @@ export function compensationDirection(category: string): CompensationDirection {
 
 type Transaction = Parameters<Parameters<typeof import('@/lib/db').db.transaction>[0]>[0];
 
+function shouldCreateCompensation(ticket: typeof exceptionTickets.$inferSelect) {
+  if (ticket.category === 'quality_control') return true;
+  return ['lost', 'damage', 'timeout'].includes(ticket.exceptionType) && Number(ticket.amount || 0) > 0;
+}
+
+function movementTypeForTicket(ticket: typeof exceptionTickets.$inferSelect) {
+  if (ticket.category === 'quality_control') return 'unlock_after_qc_execution';
+  if (ticket.exceptionType === 'rejected') return 'return_to_stock';
+  if (ticket.exceptionType === 'address_error') return 'reship_address_fix';
+  return 'exception_execution';
+}
+
 export async function executeTicket(tx: Transaction, ticket: typeof exceptionTickets.$inferSelect, approvalRecordId: string) {
-  const shouldCompensate = Number(ticket.amount || 0) > 0;
+  const shouldCompensate = shouldCreateCompensation(ticket);
   if (shouldCompensate) {
     await tx.insert(compensationRecords).values({
       ticketId: ticket.id,
       approvalRecordId,
       direction: compensationDirection(ticket.category),
-      amount: ticket.amount,
+      amount: ticket.category === 'quality_control' && Number(ticket.amount || 0) === 0 ? '0.00' : ticket.amount,
       status: 'recorded',
       reconciliationRef: `REC-${ticket.ticketNo}`,
     });
@@ -40,7 +52,7 @@ export async function executeTicket(tx: Transaction, ticket: typeof exceptionTic
         approvalRecordId,
         skuCode: scan.skuCode,
         batchNo: scan.batchNo,
-        movementType: 'unlock_after_execution',
+        movementType: movementTypeForTicket(ticket),
         quantity: 1,
         beforeQty: inventory.availableQty,
         afterQty: inventory.availableQty,

@@ -2,7 +2,7 @@ import { AppShell } from '@/components/app-shell';
 import { Badge, Card, Input, Select } from '@/components/ui';
 import { db } from '@/lib/db';
 import { exceptionTickets } from '@/lib/db/schema';
-import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, getTableColumns, sql, type SQL } from 'drizzle-orm';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
@@ -25,6 +25,7 @@ export default async function TicketsPage({
   const source = typeof params?.source === 'string' ? params.source : '';
   const exceptionType = typeof params?.exceptionType === 'string' ? params.exceptionType : '';
   const externalCode = typeof params?.externalCode === 'string' ? params.externalCode.trim() : '';
+  const assignedApproverId = typeof params?.assignedApproverId === 'string' ? params.assignedApproverId.trim() : '';
   const page = Math.max(1, Number(typeof params?.page === 'string' ? params.page : 1) || 1);
   const pageSize = Math.min(100, Math.max(1, Number(typeof params?.pageSize === 'string' ? params.pageSize : 20) || 20));
   const conditions: SQL[] = [];
@@ -32,20 +33,28 @@ export default async function TicketsPage({
   if (source) conditions.push(eq(exceptionTickets.source, source));
   if (exceptionType) conditions.push(eq(exceptionTickets.exceptionType, exceptionType));
   if (externalCode) conditions.push(eq(exceptionTickets.externalCode, externalCode));
+  if (assignedApproverId) conditions.push(eq(exceptionTickets.assignedApproverId, assignedApproverId));
   const where = conditions.length ? and(...conditions) : undefined;
   const [totalRow] = await db.select({ count: sql<number>`count(*)` }).from(exceptionTickets).where(where);
   const total = Number(totalRow?.count || 0);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(page, totalPages);
   const tickets = await db
-    .select()
+    .select({
+      ...getTableColumns(exceptionTickets),
+      isDueSoon: sql<boolean>`
+        ${exceptionTickets.timeoutAt} is not null
+        and ${exceptionTickets.timeoutAt} < now() + interval '2 hours'
+        and ${exceptionTickets.status} not in ('completed', 'closed', 'auto_rejected', 'fast_released')
+      `,
+    })
     .from(exceptionTickets)
     .where(where)
     .orderBy(desc(exceptionTickets.createdAt))
     .limit(pageSize)
     .offset((currentPage - 1) * pageSize);
 
-  const baseQuery = { status, source, exceptionType, externalCode, pageSize };
+  const baseQuery = { status, source, exceptionType, externalCode, assignedApproverId, pageSize };
   return (
     <AppShell>
       <div className="flex items-center justify-between">
@@ -56,7 +65,7 @@ export default async function TicketsPage({
         <Badge>{total} 条记录</Badge>
       </div>
       <Card className="mt-4">
-        <form className="mb-4 grid grid-cols-5 gap-3">
+        <form className="mb-4 grid grid-cols-6 gap-3">
           <Select name="status" defaultValue={status}>
             <option value="">全部状态</option>
             <option value="level1_review">一级待审</option>
@@ -74,13 +83,14 @@ export default async function TicketsPage({
           </Select>
           <Input name="exceptionType" defaultValue={exceptionType} placeholder="异常类型" />
           <Input name="externalCode" defaultValue={externalCode} placeholder="运单号" />
+          <Input name="assignedApproverId" defaultValue={assignedApproverId} placeholder="审批人 ID" />
           <input type="hidden" name="pageSize" value={pageSize} />
           <button className="h-9 rounded-md bg-[#0fc6c2] px-4 text-sm font-medium text-white hover:bg-[#0aa6a3]">筛选</button>
         </form>
         <div className="overflow-hidden rounded-md border border-[#dfe7e8]">
           <table className="w-full text-left text-sm">
             <thead className="bg-[#f5f8f8] text-[#667780]">
-              <tr><th className="p-2">工单号</th><th className="p-2">运单</th><th className="p-2">来源</th><th className="p-2">类型</th><th className="p-2">状态</th><th className="p-2">金额</th></tr>
+              <tr><th className="p-2">工单号</th><th className="p-2">运单</th><th className="p-2">来源</th><th className="p-2">类型</th><th className="p-2">状态</th><th className="p-2">金额</th><th className="p-2">超时</th></tr>
             </thead>
             <tbody>
               {tickets.map((ticket) => (
@@ -91,11 +101,16 @@ export default async function TicketsPage({
                   <td className="p-2">{ticket.exceptionType}</td>
                   <td className="p-2">{ticket.status}</td>
                   <td className="p-2">{ticket.amount}</td>
+                  <td className="p-2">
+                    {ticket.isDueSoon
+                      ? <Badge tone="warn">即将超时</Badge>
+                      : '-'}
+                  </td>
                 </tr>
               ))}
               {!tickets.length && (
                 <tr>
-                  <td className="p-6 text-center text-[#667780]" colSpan={6}>暂无匹配工单</td>
+                  <td className="p-6 text-center text-[#667780]" colSpan={7}>暂无匹配工单</td>
                 </tr>
               )}
             </tbody>

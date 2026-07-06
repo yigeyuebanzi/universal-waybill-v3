@@ -1,5 +1,6 @@
 import { AppShell } from '@/components/app-shell';
 import { Badge, Card } from '@/components/ui';
+import { TicketActions } from '@/components/ticket-actions';
 import { db } from '@/lib/db';
 import { approvalRecords, compensationRecords, exceptionTickets, scanRecords, waybillSnapshots } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -28,12 +29,39 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
         </Card>
       </div>
       <Card className="mt-4">
-        <h2 className="mb-3 font-semibold">审批记录</h2>
-        {approvals.map((approval) => <div key={approval.id} className="border-t py-2 text-sm">{approval.level} 级 {approval.action}：{approval.opinion}</div>)}
+        <h2 className="mb-3 font-semibold">操作</h2>
+        <TicketActions ticketId={ticket.id} status={ticket.status} source={ticket.source} version={ticket.version} />
       </Card>
       <Card className="mt-4">
-        <h2 className="mb-3 font-semibold">扫描/赔付</h2>
-        <div className="text-sm">扫描记录 {scans.length} 条，赔付记录 {compensations.length} 条</div>
+        <h2 className="mb-3 font-semibold">审批记录</h2>
+        {approvals.map((approval) => (
+          <div key={approval.id} className="border-t py-2 text-sm first:border-t-0">
+            <div className="font-medium">{approval.level} 级 {approval.action} · {approval.fromStatus} → {approval.toStatus}</div>
+            <div className="text-[#667780]">{approval.opinion}</div>
+            <div className="text-xs text-[#88979e]">{approval.createdAt?.toLocaleString()} · {approval.idempotencyKey}</div>
+          </div>
+        ))}
+        {!approvals.length && <div className="text-sm text-[#667780]">暂无审批记录</div>}
+      </Card>
+      <Card className="mt-4">
+        <h2 className="mb-3 font-semibold">扫描记录</h2>
+        {scans.map((scan) => (
+          <div key={scan.id} className="border-t py-2 text-sm first:border-t-0">
+            <div>{scan.scanNo} · {scan.skuCode} · {scan.batchNo}</div>
+            <div className="text-[#667780]">{scan.qcResult} / {scan.qcStatus} · 命中规则 {scan.matchedRuleId || '-'}</div>
+          </div>
+        ))}
+        {!scans.length && <div className="text-sm text-[#667780]">暂无扫描记录</div>}
+      </Card>
+      <Card className="mt-4">
+        <h2 className="mb-3 font-semibold">赔付记录</h2>
+        {compensations.map((item) => (
+          <div key={item.id} className="border-t py-2 text-sm first:border-t-0">
+            <div>{item.direction} · {item.amount} · {item.status}</div>
+            <div className="text-xs text-[#88979e]">审批记录 {item.approvalRecordId}</div>
+          </div>
+        ))}
+        {!compensations.length && <div className="text-sm text-[#667780]">暂无赔付记录</div>}
       </Card>
     </AppShell>
   );

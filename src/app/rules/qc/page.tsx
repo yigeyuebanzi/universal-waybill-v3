@@ -1,5 +1,6 @@
 import { AppShell } from '@/components/app-shell';
 import { Badge, Card } from '@/components/ui';
+import { QcRuleForm } from '@/components/rule-create-forms';
 import { db } from '@/lib/db';
 import { qcRules } from '@/lib/db/schema';
 import { asc } from 'drizzle-orm';
@@ -11,6 +12,9 @@ export default async function QcRulesPage() {
   return (
     <AppShell>
       <h1 className="text-2xl font-semibold">品控规则</h1>
+      <Card className="mt-4">
+        <QcRuleForm />
+      </Card>
       <Card className="mt-4">
         <table className="w-full text-left text-sm">
           <thead className="bg-[#f5f8f8] text-[#667780]"><tr><th className="p-2">名称</th><th className="p-2">子类型</th><th className="p-2">条件</th><th className="p-2">严重度</th><th className="p-2">状态</th></tr></thead>

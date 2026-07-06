@@ -1,11 +1,55 @@
 import { db } from '@/lib/db';
-import { approvalRecords, exceptionTickets } from '@/lib/db/schema';
-import { and, eq, lt, or } from 'drizzle-orm';
+import { approvalRecords, exceptionTickets, users } from '@/lib/db/schema';
+import { approverRoleForLevel, REVIEW_STATUSES } from '@/lib/ticket-status';
+import { and, eq, inArray, lt, or } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST() {
+  const disabledAssigned = await db
+    .select({ ticket: exceptionTickets, approver: users })
+    .from(exceptionTickets)
+    .innerJoin(users, eq(exceptionTickets.assignedApproverId, users.id))
+    .where(and(eq(users.enabled, false), inArray(exceptionTickets.status, [...REVIEW_STATUSES])))
+    .limit(50);
+
+  let reassigned = 0;
+  for (const row of disabledAssigned) {
+    const ticket = row.ticket;
+    const [replacement] = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.enabled, true), eq(users.role, approverRoleForLevel(ticket.currentLevel))))
+      .limit(1);
+    if (!replacement) continue;
+
+    await db.transaction(async (tx) => {
+      const updated = await tx.update(exceptionTickets).set({
+        assignedApproverId: replacement.id,
+        updatedAt: new Date(),
+        version: ticket.version + 1,
+      }).where(and(
+        eq(exceptionTickets.id, ticket.id),
+        eq(exceptionTickets.version, ticket.version),
+        inArray(exceptionTickets.status, [...REVIEW_STATUSES])
+      )).returning({ id: exceptionTickets.id });
+      if (!updated.length) return;
+
+      await tx.insert(approvalRecords).values({
+        ticketId: ticket.id,
+        level: ticket.currentLevel,
+        approverId: replacement.id,
+        action: 'reassign_disabled_approver',
+        opinion: `原审批人账号禁用，自动转交给 ${replacement.name}`,
+        idempotencyKey: `reassign-disabled-${ticket.id}-${ticket.version}`,
+        fromStatus: ticket.status,
+        toStatus: ticket.status,
+      }).onConflictDoNothing();
+      reassigned++;
+    });
+  }
+
   const overdue = await db
     .select()
     .from(exceptionTickets)
@@ -21,6 +65,24 @@ export async function POST() {
   for (const ticket of overdue) {
     const nextStatus = ticket.currentLevel < 2 ? 'level2_review' : 'auto_rejected';
     await db.transaction(async (tx) => {
+      const [replacement] = ticket.currentLevel < 2
+        ? await tx.select().from(users).where(and(eq(users.enabled, true), eq(users.role, 'level2_approver'))).limit(1)
+        : [];
+      const updated = await tx.update(exceptionTickets).set({
+        status: nextStatus,
+        currentLevel: ticket.currentLevel < 2 ? 2 : ticket.currentLevel,
+        assignedApproverId: ticket.currentLevel < 2 ? replacement?.id : ticket.assignedApproverId,
+        timeoutAt: ticket.currentLevel < 2 ? new Date(Date.now() + 24 * 60 * 60 * 1000) : ticket.timeoutAt,
+        closedAt: nextStatus === 'auto_rejected' ? new Date() : ticket.closedAt,
+        updatedAt: new Date(),
+        version: ticket.version + 1,
+      }).where(and(
+        eq(exceptionTickets.id, ticket.id),
+        eq(exceptionTickets.version, ticket.version),
+        inArray(exceptionTickets.status, [...REVIEW_STATUSES])
+      )).returning({ id: exceptionTickets.id });
+      if (!updated.length) return;
+
       await tx.insert(approvalRecords).values({
         ticketId: ticket.id,
         level: ticket.currentLevel,
@@ -30,17 +92,9 @@ export async function POST() {
         fromStatus: ticket.status,
         toStatus: nextStatus,
       }).onConflictDoNothing();
-
-      await tx.update(exceptionTickets).set({
-        status: nextStatus,
-        currentLevel: ticket.currentLevel < 2 ? 2 : ticket.currentLevel,
-        timeoutAt: ticket.currentLevel < 2 ? new Date(Date.now() + 24 * 60 * 60 * 1000) : ticket.timeoutAt,
-        updatedAt: new Date(),
-        version: ticket.version + 1,
-      }).where(eq(exceptionTickets.id, ticket.id));
+      changed++;
     });
-    changed++;
   }
 
-  return NextResponse.json({ changed });
+  return NextResponse.json({ changed, reassigned });
 }

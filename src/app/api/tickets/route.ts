@@ -73,8 +73,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Reporter is disabled or missing' }, { status: 403 });
   }
 
-  const order = await fetchV2Order(input.externalCode);
-  const snapshot = await upsertSnapshot(order);
+  let snapshot;
+  try {
+    const order = await fetchV2Order(input.externalCode);
+    snapshot = await upsertSnapshot(order);
+  } catch (error) {
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : 'V2 实时校验失败，请稍后重试',
+    }, { status: 502 });
+  }
 
   const [duplicate] = await db
     .select()

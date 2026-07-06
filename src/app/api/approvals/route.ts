@@ -2,7 +2,8 @@ import { db } from '@/lib/db';
 import { approvalRecords, exceptionTickets } from '@/lib/db/schema';
 import { canApprove, getActor } from '@/lib/auth-context';
 import { executeTicket } from '@/lib/execution';
-import { eq, and } from 'drizzle-orm';
+import { REVIEW_STATUSES, isClosedStatus } from '@/lib/ticket-status';
+import { eq, and, inArray } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -26,6 +27,9 @@ export async function POST(request: Request) {
 
   const [ticket] = await db.select().from(exceptionTickets).where(eq(exceptionTickets.id, input.ticketId)).limit(1);
   if (!ticket) return NextResponse.json({ error: '工单不存在' }, { status: 404 });
+  if (isClosedStatus(ticket.status) || !REVIEW_STATUSES.includes(ticket.status as (typeof REVIEW_STATUSES)[number])) {
+    return NextResponse.json({ error: '当前工单状态不可审批，请刷新' }, { status: 409 });
+  }
   if (ticket.reporterId === actor.id) return NextResponse.json({ error: '上报人不能审批自己的工单' }, { status: 403 });
   if (!canApprove(actor.role, ticket.currentLevel)) return NextResponse.json({ error: '无当前审批层级权限' }, { status: 403 });
   if (ticket.version !== input.expectedVersion) return NextResponse.json({ error: '该工单已被处理，请刷新' }, { status: 409 });
@@ -51,23 +55,47 @@ export async function POST(request: Request) {
     }).returning();
 
     if (input.action === 'reject') {
-      await tx.update(exceptionTickets).set({
-        status: 'rejected',
-        resubmitCount: ticket.resubmitCount + 1,
+      const nextResubmitCount = ticket.resubmitCount + 1;
+      const toStatusAfterReject = nextResubmitCount > ticket.maxResubmitCount ? 'auto_rejected' : 'rejected';
+      const updated = await tx.update(exceptionTickets).set({
+        status: toStatusAfterReject,
+        resubmitCount: nextResubmitCount,
+        closedAt: toStatusAfterReject === 'auto_rejected' ? new Date() : null,
         updatedAt: new Date(),
         version: ticket.version + 1,
-      }).where(eq(exceptionTickets.id, ticket.id));
+      }).where(and(
+        eq(exceptionTickets.id, ticket.id),
+        eq(exceptionTickets.version, input.expectedVersion),
+        inArray(exceptionTickets.status, [...REVIEW_STATUSES])
+      )).returning({ id: exceptionTickets.id });
+      if (!updated.length) throw new Error('该工单已被处理，请刷新');
+
+      await tx.update(approvalRecords).set({ toStatus: toStatusAfterReject }).where(eq(approvalRecords.id, record.id));
     } else {
-      await tx.update(exceptionTickets).set({
+      const updated = await tx.update(exceptionTickets).set({
         status: 'executing',
         updatedAt: new Date(),
         version: ticket.version + 1,
-      }).where(eq(exceptionTickets.id, ticket.id));
+      }).where(and(
+        eq(exceptionTickets.id, ticket.id),
+        eq(exceptionTickets.version, input.expectedVersion),
+        inArray(exceptionTickets.status, [...REVIEW_STATUSES])
+      )).returning({ id: exceptionTickets.id });
+      if (!updated.length) throw new Error('该工单已被处理，请刷新');
       await executeTicket(tx, ticket, record.id);
     }
 
     return record;
+  }).catch((error) => {
+    if (error instanceof Error && error.message.includes('该工单已被处理')) {
+      return { conflict: true as const };
+    }
+    throw error;
   });
+
+  if ('conflict' in result) {
+    return NextResponse.json({ error: '该工单已被处理，请刷新' }, { status: 409 });
+  }
 
   return NextResponse.json({ data: result });
 }

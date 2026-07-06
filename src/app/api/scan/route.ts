@@ -5,7 +5,8 @@ import { getActor } from '@/lib/auth-context';
 import { evaluateQc } from '@/lib/qc-engine';
 import { fetchV2Order, validateV2Sku } from '@/lib/v2-client';
 import { upsertSnapshot } from '@/lib/snapshots';
-import { and, eq, ne } from 'drizzle-orm';
+import { CLOSED_STATUSES } from '@/lib/ticket-status';
+import { and, eq, notInArray } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -32,9 +33,16 @@ export async function POST(request: Request) {
   const actor = await getActor(input.operatorId);
   if (!actor || !actor.enabled) return NextResponse.json({ error: 'Operator is disabled or missing' }, { status: 403 });
 
-  await validateV2Sku(input.externalCode, input.skuCode);
-  const order = await fetchV2Order(input.externalCode);
-  const snapshot = await upsertSnapshot(order);
+  let snapshot;
+  try {
+    await validateV2Sku(input.externalCode, input.skuCode);
+    const order = await fetchV2Order(input.externalCode);
+    snapshot = await upsertSnapshot(order);
+  } catch (error) {
+    return NextResponse.json({
+      error: error instanceof Error ? error.message : 'V2 SKU 实时校验失败，请稍后重试',
+    }, { status: 502 });
+  }
   const qc = await evaluateQc(input);
 
   if (qc.passed) {
@@ -62,8 +70,7 @@ export async function POST(request: Request) {
         eq(scanRecords.skuCode, input.skuCode),
         eq(scanRecords.batchNo, input.batchNo),
         eq(exceptionTickets.category, 'quality_control'),
-        ne(exceptionTickets.status, 'completed'),
-        ne(exceptionTickets.status, 'closed')
+        notInArray(exceptionTickets.status, [...CLOSED_STATUSES])
       )
     )
     .limit(1);

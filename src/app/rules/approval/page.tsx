@@ -1,5 +1,6 @@
 import { AppShell } from '@/components/app-shell';
 import { Badge, Card } from '@/components/ui';
+import { ApprovalRuleForm } from '@/components/rule-create-forms';
 import { db } from '@/lib/db';
 import { approvalRules } from '@/lib/db/schema';
 import { asc } from 'drizzle-orm';
@@ -11,6 +12,9 @@ export default async function ApprovalRulesPage() {
   return (
     <AppShell>
       <h1 className="text-2xl font-semibold">审批规则</h1>
+      <Card className="mt-4">
+        <ApprovalRuleForm />
+      </Card>
       <Card className="mt-4">
         {rules.map((rule) => (
           <div key={rule.id} className="flex items-center justify-between border-t py-3 first:border-t-0">
