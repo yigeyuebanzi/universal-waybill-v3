@@ -61,7 +61,9 @@ POST /api/v1/integration/orders/{externalCode}/exception-marker
 
 ## 超时与重试
 
-V3 调 V2 超时时间为 8 秒。关键动作失败时不创建新工单；详情页可展示本地缓存并明确同步时间。
+V3 调 V2 超时时间为 8 秒。V3 对 V2 `5xx`、网络错误、超时错误最多尝试 2 次；`4xx` 业务错误不重试，避免对不存在运单、SKU 不归属等确定性错误做无意义重放。每次尝试共用同一个 Request ID，并在 `integration_logs.params_digest` 中记录 attempt，便于还原调用链。
+
+关键动作失败时不创建新工单；详情页可展示本地缓存并明确同步时间。
 
 ## 降级策略
 

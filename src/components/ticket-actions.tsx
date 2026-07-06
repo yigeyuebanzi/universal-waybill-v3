@@ -17,6 +17,7 @@ export function TicketActions({ ticketId, status, source, version }: Props) {
   const [opinion, setOpinion] = useState('');
   const [loading, setLoading] = useState('');
   const [message, setMessage] = useState('');
+  const [aiMessage, setAiMessage] = useState('');
   const idempotencyKey = useMemo(() => crypto.randomUUID(), []);
 
   async function post(path: string, body: Record<string, unknown>, confirmText: string) {
@@ -45,6 +46,24 @@ export function TicketActions({ ticketId, status, source, version }: Props) {
     }
   }
 
+  async function suggestApproval() {
+    setLoading('ai');
+    setAiMessage('');
+    try {
+      const res = await fetch('/api/ai/suggest', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mode: 'approval', text: `${status} ${source} ${opinion}` }),
+      });
+      const json = await res.json();
+      setAiMessage(json.suggestion ? `AI 建议，需人工确认：${json.suggestion}` : json.warning || json.message || 'AI 建议暂不可用，主流程不受影响');
+    } catch {
+      setAiMessage('AI 建议暂不可用，主流程不受影响');
+    } finally {
+      setLoading('');
+    }
+  }
+
   const canApprove = status === 'pending' || status === 'level1_review' || status === 'level2_review' || status === 'resubmitted';
   const canResubmit = status === 'rejected';
   const canFastRelease = source === 'scan_qc' && !['completed', 'closed', 'auto_rejected', 'fast_released'].includes(status);
@@ -67,6 +86,13 @@ export function TicketActions({ ticketId, status, source, version }: Props) {
       <div className="flex flex-wrap gap-2">
         {canApprove && (
           <>
+            <Button
+              className="bg-[#5f5e5a] hover:bg-[#454440]"
+              disabled={Boolean(loading)}
+              onClick={suggestApproval}
+            >
+              {loading === 'ai' ? '分析中' : 'AI 审批建议'}
+            </Button>
             <Button
               disabled={Boolean(loading)}
               onClick={() => post('/api/approvals', {
@@ -125,6 +151,7 @@ export function TicketActions({ ticketId, status, source, version }: Props) {
         )}
       </div>
       {message && <div className="text-sm text-[#667780]">{message}</div>}
+      {aiMessage && <div className="rounded-md border border-[#dfe7e8] bg-[#f5f8f8] p-3 text-sm text-[#4a5a63]">{aiMessage}</div>}
     </div>
   );
 }

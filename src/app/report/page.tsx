@@ -7,7 +7,9 @@ import { useState } from 'react';
 export default function ReportPage() {
   const [form, setForm] = useState({ externalCode: '', exceptionType: 'lost', amount: '0', description: '' });
   const [message, setMessage] = useState('');
+  const [aiMessage, setAiMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
 
   async function submit() {
     setLoading(true);
@@ -22,6 +24,24 @@ export default function ReportPage() {
       setMessage(res.ok ? `已创建工单：${json.data.ticketNo}` : json.error || '创建失败');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function suggest() {
+    setAiLoading(true);
+    setAiMessage('');
+    try {
+      const res = await fetch('/api/ai/suggest', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mode: 'classify', text: form.description || form.exceptionType }),
+      });
+      const json = await res.json();
+      setAiMessage(json.suggestion ? `AI 建议，需人工确认：${json.suggestion}` : json.message || json.warning || 'AI 建议暂不可用，主流程不受影响');
+    } catch {
+      setAiMessage('AI 建议暂不可用，主流程不受影响');
+    } finally {
+      setAiLoading(false);
     }
   }
 
@@ -40,8 +60,10 @@ export default function ReportPage() {
         </div>
         <div className="mt-4 flex items-center gap-3">
           <Button disabled={loading} onClick={submit}>{loading ? '提交中' : '提交上报'}</Button>
+          <Button className="bg-[#5f5e5a] hover:bg-[#454440]" disabled={aiLoading || !form.description} onClick={suggest}>{aiLoading ? '分析中' : 'AI 建议'}</Button>
           <span className="text-sm text-[#667780]">{message}</span>
         </div>
+        {aiMessage && <div className="mt-3 rounded-md border border-[#dfe7e8] bg-[#f5f8f8] p-3 text-sm text-[#4a5a63]">{aiMessage}</div>}
       </Card>
     </AppShell>
   );
