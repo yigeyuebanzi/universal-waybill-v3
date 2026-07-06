@@ -4,7 +4,7 @@ import { resolveApproval } from '@/lib/approval-engine';
 import { getActor } from '@/lib/auth-context';
 import { fetchV2Order } from '@/lib/v2-client';
 import { upsertSnapshot } from '@/lib/snapshots';
-import { and, desc, eq, ne } from 'drizzle-orm';
+import { and, desc, eq, ne, sql, type SQL } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -23,17 +23,42 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status');
   const externalCode = searchParams.get('externalCode');
-  const conditions = [];
+  const source = searchParams.get('source');
+  const exceptionType = searchParams.get('exceptionType');
+  const assignedApproverId = searchParams.get('assignedApproverId');
+  const page = Math.max(1, Number(searchParams.get('page') || 1) || 1);
+  const pageSize = Math.min(100, Math.max(1, Number(searchParams.get('pageSize') || 20) || 20));
+  const offset = (page - 1) * pageSize;
+  const conditions: SQL[] = [];
   if (status) conditions.push(eq(exceptionTickets.status, status));
   if (externalCode) conditions.push(eq(exceptionTickets.externalCode, externalCode));
+  if (source) conditions.push(eq(exceptionTickets.source, source));
+  if (exceptionType) conditions.push(eq(exceptionTickets.exceptionType, exceptionType));
+  if (assignedApproverId) conditions.push(eq(exceptionTickets.assignedApproverId, assignedApproverId));
+  const where = conditions.length ? and(...conditions) : undefined;
+
+  const [totalRow] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(exceptionTickets)
+    .where(where);
 
   const data = await db
     .select()
     .from(exceptionTickets)
-    .where(conditions.length ? and(...conditions) : undefined)
+    .where(where)
     .orderBy(desc(exceptionTickets.createdAt))
-    .limit(100);
-  return NextResponse.json({ data });
+    .limit(pageSize)
+    .offset(offset);
+  const total = Number(totalRow?.count || 0);
+  return NextResponse.json({
+    data,
+    pagination: {
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    },
+  });
 }
 
 export async function POST(request: Request) {
