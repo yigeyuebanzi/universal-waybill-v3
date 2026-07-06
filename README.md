@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 运单全流程管理系统 V3
 
-## Getting Started
+V3 是独立部署、独立数据库的运单全生命周期管理系统。它通过 HTTP API 与 V2 录单系统对接，不直接连接或读写 V2 数据库。
 
-First, run the development server:
+## 技术栈
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Next.js App Router + TypeScript
+- Drizzle ORM
+- Neon PostgreSQL
+- Tailwind CSS
+- DeepSeek 可选建议能力
+
+## 环境变量
+
+```env
+DATABASE_URL=
+DATABASE_URL_UNPOOLED=
+V2_API_BASE_URL=https://universal-import-v2-phi.vercel.app
+V2_API_KEY=
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_API_KEY=
+DEEPSEEK_MODEL=deepseek/deepseek-v4-flash
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+V2 项目需配置：
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```env
+V2_INTEGRATION_API_KEY=
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`V2_API_KEY` 与 `V2_INTEGRATION_API_KEY` 必须完全相同。
 
-## Learn More
+## 本地运行
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm install
+npm run db:generate
+npm run db:push
+npm run seed
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 关键能力
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- 手工物流异常上报，实时调用 V2 校验运单。
+- 扫描品控，实时调用 V2 校验 SKU 归属。
+- 品控规则与审批规则可配置。
+- 工单状态机与扫描批次状态分离。
+- 一级/二级审批、拒绝重提、超时流转、快速放行。
+- 库存、赔付、审批记录可追溯到工单和审批记录。
+- 接口同步日志记录 Request ID、状态码、耗时和错误信息。
+- V2 不可用时允许展示本地快照并标注缓存来源。
 
-## Deploy on Vercel
+## 演示角色
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+种子脚本会创建：
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- 仓库操作员
+- 一级审批人
+- 二级审批人
+- 品控主管
+- 管理员
+
+当前演示版通过请求体传 `actorId` 或默认用户模拟角色，后续可接入正式登录系统。
