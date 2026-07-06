@@ -21,7 +21,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
       <div className="grid grid-cols-2 gap-4">
         <Card>
           <h2 className="mb-3 font-semibold">工单信息</h2>
-          <dl className="grid grid-cols-2 gap-2 text-sm"><dt>运单</dt><dd>{ticket.externalCode}</dd><dt>类型</dt><dd>{ticket.exceptionType}</dd><dt>来源</dt><dd>{ticket.source}</dd><dt>金额</dt><dd>{ticket.amount}</dd><dt>描述</dt><dd>{ticket.description}</dd></dl>
+          <dl className="grid grid-cols-2 gap-2 text-sm"><dt>运单</dt><dd>{ticket.externalCode}</dd><dt>类型</dt><dd>{ticket.exceptionType}</dd><dt>来源</dt><dd>{ticket.source}</dd><dt>金额</dt><dd>{ticket.amount}</dd><dt>审批超时</dt><dd>{ticket.timeoutAt?.toLocaleString() || '-'}</dd><dt>品控暂扣超时</dt><dd>{ticket.qcHoldTimeoutAt?.toLocaleString() || '-'}</dd><dt>描述</dt><dd>{ticket.description}</dd></dl>
         </Card>
         <Card>
           <h2 className="mb-3 font-semibold">运单快照</h2>

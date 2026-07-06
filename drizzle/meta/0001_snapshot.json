@@ -1,0 +1,1475 @@
+{
+  "id": "6f40da21-1d1e-4e39-8f3f-7cf07e894fe2",
+  "prevId": "dbb5eee6-7439-4891-9018-8265c3326dd2",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.approval_records": {
+      "name": "approval_records",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "ticket_id": {
+          "name": "ticket_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "level": {
+          "name": "level",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "approver_id": {
+          "name": "approver_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action": {
+          "name": "action",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "opinion": {
+          "name": "opinion",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_status": {
+          "name": "from_status",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "to_status": {
+          "name": "to_status",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "ux_approval_records_idempotency": {
+          "name": "ux_approval_records_idempotency",
+          "columns": [
+            {
+              "expression": "ticket_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_approval_records_ticket_id": {
+          "name": "idx_approval_records_ticket_id",
+          "columns": [
+            {
+              "expression": "ticket_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "approval_records_ticket_id_exception_tickets_id_fk": {
+          "name": "approval_records_ticket_id_exception_tickets_id_fk",
+          "tableFrom": "approval_records",
+          "tableTo": "exception_tickets",
+          "columnsFrom": [
+            "ticket_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "approval_records_approver_id_users_id_fk": {
+          "name": "approval_records_approver_id_users_id_fk",
+          "tableFrom": "approval_records",
+          "tableTo": "users",
+          "columnsFrom": [
+            "approver_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.approval_rules": {
+      "name": "approval_rules",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "min_amount": {
+          "name": "min_amount",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "max_amount": {
+          "name": "max_amount",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_level": {
+          "name": "target_level",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "timeout_hours": {
+          "name": "timeout_hours",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 24
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.audit_logs": {
+      "name": "audit_logs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "actor_id": {
+          "name": "actor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "entity_type": {
+          "name": "entity_type",
+          "type": "varchar(60)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "action": {
+          "name": "action",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "before_json": {
+          "name": "before_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "after_json": {
+          "name": "after_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "audit_logs_actor_id_users_id_fk": {
+          "name": "audit_logs_actor_id_users_id_fk",
+          "tableFrom": "audit_logs",
+          "tableTo": "users",
+          "columnsFrom": [
+            "actor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.compensation_records": {
+      "name": "compensation_records",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "ticket_id": {
+          "name": "ticket_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "approval_record_id": {
+          "name": "approval_record_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "direction": {
+          "name": "direction",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'recorded'"
+        },
+        "reconciliation_ref": {
+          "name": "reconciliation_ref",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "compensation_records_ticket_id_exception_tickets_id_fk": {
+          "name": "compensation_records_ticket_id_exception_tickets_id_fk",
+          "tableFrom": "compensation_records",
+          "tableTo": "exception_tickets",
+          "columnsFrom": [
+            "ticket_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "compensation_records_approval_record_id_approval_records_id_fk": {
+          "name": "compensation_records_approval_record_id_approval_records_id_fk",
+          "tableFrom": "compensation_records",
+          "tableTo": "approval_records",
+          "columnsFrom": [
+            "approval_record_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.exception_tickets": {
+      "name": "exception_tickets",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "ticket_no": {
+          "name": "ticket_no",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "external_code": {
+          "name": "external_code",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "snapshot_id": {
+          "name": "snapshot_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "exception_type": {
+          "name": "exception_type",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "severity": {
+          "name": "severity",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'medium'"
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "current_level": {
+          "name": "current_level",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "reporter_id": {
+          "name": "reporter_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "assigned_approver_id": {
+          "name": "assigned_approver_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resubmit_count": {
+          "name": "resubmit_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "max_resubmit_count": {
+          "name": "max_resubmit_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 2
+        },
+        "qc_hold_timeout_at": {
+          "name": "qc_hold_timeout_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "timeout_at": {
+          "name": "timeout_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "ux_exception_tickets_ticket_no": {
+          "name": "ux_exception_tickets_ticket_no",
+          "columns": [
+            {
+              "expression": "ticket_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_exception_tickets_external_code": {
+          "name": "idx_exception_tickets_external_code",
+          "columns": [
+            {
+              "expression": "external_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_exception_tickets_status": {
+          "name": "idx_exception_tickets_status",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_exception_tickets_timeout_at": {
+          "name": "idx_exception_tickets_timeout_at",
+          "columns": [
+            {
+              "expression": "timeout_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_exception_tickets_qc_hold_timeout_at": {
+          "name": "idx_exception_tickets_qc_hold_timeout_at",
+          "columns": [
+            {
+              "expression": "qc_hold_timeout_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "exception_tickets_snapshot_id_waybill_snapshots_id_fk": {
+          "name": "exception_tickets_snapshot_id_waybill_snapshots_id_fk",
+          "tableFrom": "exception_tickets",
+          "tableTo": "waybill_snapshots",
+          "columnsFrom": [
+            "snapshot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "exception_tickets_reporter_id_users_id_fk": {
+          "name": "exception_tickets_reporter_id_users_id_fk",
+          "tableFrom": "exception_tickets",
+          "tableTo": "users",
+          "columnsFrom": [
+            "reporter_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "exception_tickets_assigned_approver_id_users_id_fk": {
+          "name": "exception_tickets_assigned_approver_id_users_id_fk",
+          "tableFrom": "exception_tickets",
+          "tableTo": "users",
+          "columnsFrom": [
+            "assigned_approver_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.integration_logs": {
+      "name": "integration_logs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "system": {
+          "name": "system",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'v2'"
+        },
+        "endpoint": {
+          "name": "endpoint",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "method": {
+          "name": "method",
+          "type": "varchar(12)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "params_digest": {
+          "name": "params_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status_code": {
+          "name": "status_code",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "success": {
+          "name": "success",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "duration_ms": {
+          "name": "duration_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "error_message": {
+          "name": "error_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_integration_logs_request_id": {
+          "name": "idx_integration_logs_request_id",
+          "columns": [
+            {
+              "expression": "request_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_integration_logs_created_at": {
+          "name": "idx_integration_logs_created_at",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.inventory_items": {
+      "name": "inventory_items",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "sku_code": {
+          "name": "sku_code",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sku_name": {
+          "name": "sku_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "batch_no": {
+          "name": "batch_no",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "available_qty": {
+          "name": "available_qty",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "locked_qty": {
+          "name": "locked_qty",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'available'"
+        },
+        "warehouse_id": {
+          "name": "warehouse_id",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'default-warehouse'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "ux_inventory_sku_batch_warehouse": {
+          "name": "ux_inventory_sku_batch_warehouse",
+          "columns": [
+            {
+              "expression": "sku_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "batch_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "warehouse_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_inventory_status": {
+          "name": "idx_inventory_status",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.inventory_movements": {
+      "name": "inventory_movements",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "ticket_id": {
+          "name": "ticket_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approval_record_id": {
+          "name": "approval_record_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sku_code": {
+          "name": "sku_code",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "batch_no": {
+          "name": "batch_no",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "movement_type": {
+          "name": "movement_type",
+          "type": "varchar(60)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "before_qty": {
+          "name": "before_qty",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "after_qty": {
+          "name": "after_qty",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "inventory_movements_ticket_id_exception_tickets_id_fk": {
+          "name": "inventory_movements_ticket_id_exception_tickets_id_fk",
+          "tableFrom": "inventory_movements",
+          "tableTo": "exception_tickets",
+          "columnsFrom": [
+            "ticket_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inventory_movements_approval_record_id_approval_records_id_fk": {
+          "name": "inventory_movements_approval_record_id_approval_records_id_fk",
+          "tableFrom": "inventory_movements",
+          "tableTo": "approval_records",
+          "columnsFrom": [
+            "approval_record_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.qc_rules": {
+      "name": "qc_rules",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sub_type": {
+          "name": "sub_type",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "condition_type": {
+          "name": "condition_type",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "condition_config": {
+          "name": "condition_config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "severity": {
+          "name": "severity",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'medium'"
+        },
+        "auto_create_ticket": {
+          "name": "auto_create_ticket",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "target_approval_level": {
+          "name": "target_approval_level",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 2
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "priority": {
+          "name": "priority",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 100
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.scan_records": {
+      "name": "scan_records",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "scan_no": {
+          "name": "scan_no",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "external_code": {
+          "name": "external_code",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sku_code": {
+          "name": "sku_code",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "batch_no": {
+          "name": "batch_no",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operator_id": {
+          "name": "operator_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "device_id": {
+          "name": "device_id",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "qc_result": {
+          "name": "qc_result",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "qc_status": {
+          "name": "qc_status",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "matched_rule_id": {
+          "name": "matched_rule_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rule_snapshot": {
+          "name": "rule_snapshot",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evidence": {
+          "name": "evidence",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ticket_id": {
+          "name": "ticket_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "ux_scan_records_scan_no": {
+          "name": "ux_scan_records_scan_no",
+          "columns": [
+            {
+              "expression": "scan_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_scan_records_batch": {
+          "name": "idx_scan_records_batch",
+          "columns": [
+            {
+              "expression": "sku_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "batch_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_scan_records_ticket_id": {
+          "name": "idx_scan_records_ticket_id",
+          "columns": [
+            {
+              "expression": "ticket_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "scan_records_operator_id_users_id_fk": {
+          "name": "scan_records_operator_id_users_id_fk",
+          "tableFrom": "scan_records",
+          "tableTo": "users",
+          "columnsFrom": [
+            "operator_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "scan_records_ticket_id_exception_tickets_id_fk": {
+          "name": "scan_records_ticket_id_exception_tickets_id_fk",
+          "tableFrom": "scan_records",
+          "tableTo": "exception_tickets",
+          "columnsFrom": [
+            "ticket_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "warehouse_id": {
+          "name": "warehouse_id",
+          "type": "varchar(80)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'default-warehouse'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.waybill_snapshots": {
+      "name": "waybill_snapshots",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "external_code": {
+          "name": "external_code",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "v2_order_id": {
+          "name": "v2_order_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "store_name": {
+          "name": "store_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "receiver_name": {
+          "name": "receiver_name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "receiver_phone": {
+          "name": "receiver_phone",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "receiver_address": {
+          "name": "receiver_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "items_json": {
+          "name": "items_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "source": {
+          "name": "source",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'v2_realtime'"
+        },
+        "synced_at": {
+          "name": "synced_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "ux_waybill_snapshots_external_code": {
+          "name": "ux_waybill_snapshots_external_code",
+          "columns": [
+            {
+              "expression": "external_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_waybill_snapshots_synced_at": {
+          "name": "idx_waybill_snapshots_synced_at",
+          "columns": [
+            {
+              "expression": "synced_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

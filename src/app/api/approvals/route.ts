@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { approvalRecords, exceptionTickets } from '@/lib/db/schema';
 import { canApprove, getActor } from '@/lib/auth-context';
 import { executeTicket } from '@/lib/execution';
+import { resolveApprovalRule, resolveLevelAssignment } from '@/lib/approval-engine';
 import { REVIEW_STATUSES, isClosedStatus } from '@/lib/ticket-status';
 import { eq, and, inArray } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
@@ -41,8 +42,18 @@ export async function POST(request: Request) {
     .limit(1);
   if (existing.length) return NextResponse.json({ data: existing[0], idempotent: true });
 
+  const approvalRule = await resolveApprovalRule(Number(ticket.amount || 0));
+  const needsNextLevel = input.action === 'approve' && ticket.currentLevel < approvalRule.requiredLevel;
+  const nextAssignment = needsNextLevel
+    ? await resolveLevelAssignment(ticket.currentLevel + 1, approvalRule.timeoutHours)
+    : null;
+
   const result = await db.transaction(async (tx) => {
-    const toStatus = input.action === 'reject' ? 'rejected' : 'executing';
+    const toStatus = input.action === 'reject'
+      ? 'rejected'
+      : needsNextLevel && nextAssignment
+        ? nextAssignment.status
+        : 'executing';
     const [record] = await tx.insert(approvalRecords).values({
       ticketId: ticket.id,
       level: ticket.currentLevel,
@@ -71,6 +82,20 @@ export async function POST(request: Request) {
       if (!updated.length) throw new Error('该工单已被处理，请刷新');
 
       await tx.update(approvalRecords).set({ toStatus: toStatusAfterReject }).where(eq(approvalRecords.id, record.id));
+    } else if (needsNextLevel && nextAssignment) {
+      const updated = await tx.update(exceptionTickets).set({
+        status: nextAssignment.status,
+        currentLevel: nextAssignment.targetLevel,
+        assignedApproverId: nextAssignment.approverId,
+        timeoutAt: nextAssignment.timeoutAt,
+        updatedAt: new Date(),
+        version: ticket.version + 1,
+      }).where(and(
+        eq(exceptionTickets.id, ticket.id),
+        eq(exceptionTickets.version, input.expectedVersion),
+        inArray(exceptionTickets.status, [...REVIEW_STATUSES])
+      )).returning({ id: exceptionTickets.id });
+      if (!updated.length) throw new Error('该工单已被处理，请刷新');
     } else {
       const updated = await tx.update(exceptionTickets).set({
         status: 'executing',

@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { approvalRecords, exceptionTickets, users } from '@/lib/db/schema';
 import { approverRoleForLevel, REVIEW_STATUSES } from '@/lib/ticket-status';
-import { and, eq, inArray, lt, or } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, lt, or } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -17,11 +17,18 @@ export async function POST() {
   let reassigned = 0;
   for (const row of disabledAssigned) {
     const ticket = row.ticket;
-    const [replacement] = await db
+    let [replacement] = await db
       .select()
       .from(users)
       .where(and(eq(users.enabled, true), eq(users.role, approverRoleForLevel(ticket.currentLevel))))
       .limit(1);
+    if (!replacement) {
+      [replacement] = await db
+        .select()
+        .from(users)
+        .where(and(eq(users.enabled, true), eq(users.role, 'admin')))
+        .limit(1);
+    }
     if (!replacement) continue;
 
     await db.transaction(async (tx) => {
@@ -50,6 +57,63 @@ export async function POST() {
     });
   }
 
+  const overdueQcHolds = await db
+    .select()
+    .from(exceptionTickets)
+    .where(
+      and(
+        eq(exceptionTickets.category, 'quality_control'),
+        isNotNull(exceptionTickets.qcHoldTimeoutAt),
+        lt(exceptionTickets.qcHoldTimeoutAt, new Date()),
+        eq(exceptionTickets.status, 'level1_review')
+      )
+    )
+    .limit(50);
+
+  let qcEscalated = 0;
+  for (const ticket of overdueQcHolds) {
+    await db.transaction(async (tx) => {
+      let [replacement] = await tx
+        .select()
+        .from(users)
+        .where(and(eq(users.enabled, true), eq(users.role, 'level2_approver')))
+        .limit(1);
+      if (!replacement) {
+        [replacement] = await tx
+          .select()
+          .from(users)
+          .where(and(eq(users.enabled, true), eq(users.role, 'admin')))
+          .limit(1);
+      }
+
+      const updated = await tx.update(exceptionTickets).set({
+        status: 'level2_review',
+        currentLevel: 2,
+        assignedApproverId: replacement?.id,
+        qcHoldTimeoutAt: null,
+        timeoutAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        updatedAt: new Date(),
+        version: ticket.version + 1,
+      }).where(and(
+        eq(exceptionTickets.id, ticket.id),
+        eq(exceptionTickets.version, ticket.version),
+        eq(exceptionTickets.status, 'level1_review')
+      )).returning({ id: exceptionTickets.id });
+      if (!updated.length) return;
+
+      await tx.insert(approvalRecords).values({
+        ticketId: ticket.id,
+        level: ticket.currentLevel,
+        action: 'qc_hold_timeout_escalate',
+        opinion: '品控暂扣超过 2 小时，自动强制升级二级审批',
+        idempotencyKey: `qc-hold-timeout-${ticket.id}-${ticket.version}`,
+        fromStatus: ticket.status,
+        toStatus: 'level2_review',
+      }).onConflictDoNothing();
+      qcEscalated++;
+    });
+  }
+
   const overdue = await db
     .select()
     .from(exceptionTickets)
@@ -65,9 +129,21 @@ export async function POST() {
   for (const ticket of overdue) {
     const nextStatus = ticket.currentLevel < 2 ? 'level2_review' : 'auto_rejected';
     await db.transaction(async (tx) => {
-      const [replacement] = ticket.currentLevel < 2
-        ? await tx.select().from(users).where(and(eq(users.enabled, true), eq(users.role, 'level2_approver'))).limit(1)
-        : [];
+      let replacement: typeof users.$inferSelect | undefined;
+      if (ticket.currentLevel < 2) {
+        [replacement] = await tx
+          .select()
+          .from(users)
+          .where(and(eq(users.enabled, true), eq(users.role, 'level2_approver')))
+          .limit(1);
+        if (!replacement) {
+          [replacement] = await tx
+            .select()
+            .from(users)
+            .where(and(eq(users.enabled, true), eq(users.role, 'admin')))
+            .limit(1);
+        }
+      }
       const updated = await tx.update(exceptionTickets).set({
         status: nextStatus,
         currentLevel: ticket.currentLevel < 2 ? 2 : ticket.currentLevel,
@@ -96,5 +172,5 @@ export async function POST() {
     });
   }
 
-  return NextResponse.json({ changed, reassigned });
+  return NextResponse.json({ changed, reassigned, qcEscalated });
 }

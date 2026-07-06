@@ -1,0 +1,2 @@
+ALTER TABLE "exception_tickets" ADD COLUMN "qc_hold_timeout_at" timestamp;--> statement-breakpoint
+CREATE INDEX "idx_exception_tickets_qc_hold_timeout_at" ON "exception_tickets" USING btree ("qc_hold_timeout_at");

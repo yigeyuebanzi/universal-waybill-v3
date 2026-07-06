@@ -1,12 +1,12 @@
 import { db } from '@/lib/db';
 import { exceptionTickets, inventoryItems, scanRecords } from '@/lib/db/schema';
-import { resolveApproval } from '@/lib/approval-engine';
+import { resolveInitialApproval } from '@/lib/approval-engine';
 import { getActor } from '@/lib/auth-context';
 import { evaluateQc } from '@/lib/qc-engine';
 import { fetchV2Order, validateV2Sku } from '@/lib/v2-client';
 import { upsertSnapshot } from '@/lib/snapshots';
 import { CLOSED_STATUSES } from '@/lib/ticket-status';
-import { and, eq, notInArray } from 'drizzle-orm';
+import { and, eq, notInArray, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -61,41 +61,58 @@ export async function POST(request: Request) {
     return NextResponse.json({ result: 'passed', record }, { status: 201 });
   }
 
-  const [existing] = await db
-    .select()
-    .from(scanRecords)
-    .innerJoin(exceptionTickets, eq(scanRecords.ticketId, exceptionTickets.id))
-    .where(
-      and(
-        eq(scanRecords.skuCode, input.skuCode),
-        eq(scanRecords.batchNo, input.batchNo),
-        eq(exceptionTickets.category, 'quality_control'),
-        notInArray(exceptionTickets.status, [...CLOSED_STATUSES])
-      )
-    )
-    .limit(1);
-
-  if (existing?.exception_tickets) {
-    const [record] = await db.insert(scanRecords).values({
-      scanNo: `S${Date.now()}`,
-      externalCode: input.externalCode,
+  const approval = await resolveInitialApproval(999999, qc.rule?.targetApprovalLevel || 2);
+  const qcHoldTimeoutAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
+  const result = await db.transaction(async (tx) => {
+    await tx.insert(inventoryItems).values({
       skuCode: input.skuCode,
+      skuName: input.skuCode,
       batchNo: input.batchNo,
-      operatorId: actor.id,
-      deviceId: input.deviceId,
-      qcResult: 'failed',
-      qcStatus: 'held',
-      matchedRuleId: qc.rule?.id,
-      ruleSnapshot: qc.rule,
-      evidence: input,
-      description: input.description,
-      ticketId: existing.exception_tickets.id,
-    }).returning();
-    return NextResponse.json({ result: 'duplicate_held', message: '该批次已存在未关闭品控工单', record }, { status: 200 });
-  }
+      availableQty: 0,
+      lockedQty: 0,
+      status: 'available',
+    }).onConflictDoNothing();
 
-  const approval = await resolveApproval(999999);
-  const [ticket] = await db.transaction(async (tx) => {
+    await tx.execute(sql`
+      select id from ${inventoryItems}
+      where ${inventoryItems.skuCode} = ${input.skuCode}
+        and ${inventoryItems.batchNo} = ${input.batchNo}
+      for update
+    `);
+
+    const [existing] = await tx
+      .select()
+      .from(scanRecords)
+      .innerJoin(exceptionTickets, eq(scanRecords.ticketId, exceptionTickets.id))
+      .where(
+        and(
+          eq(scanRecords.skuCode, input.skuCode),
+          eq(scanRecords.batchNo, input.batchNo),
+          eq(exceptionTickets.category, 'quality_control'),
+          notInArray(exceptionTickets.status, [...CLOSED_STATUSES])
+        )
+      )
+      .limit(1);
+
+    if (existing?.exception_tickets) {
+      const [record] = await tx.insert(scanRecords).values({
+        scanNo: `S${Date.now()}`,
+        externalCode: input.externalCode,
+        skuCode: input.skuCode,
+        batchNo: input.batchNo,
+        operatorId: actor.id,
+        deviceId: input.deviceId,
+        qcResult: 'failed',
+        qcStatus: 'held',
+        matchedRuleId: qc.rule?.id,
+        ruleSnapshot: qc.rule,
+        evidence: input,
+        description: input.description,
+        ticketId: existing.exception_tickets.id,
+      }).returning();
+      return { result: 'duplicate_held' as const, record };
+    }
+
     const [createdTicket] = await tx.insert(exceptionTickets).values({
       ticketNo: `Q${Date.now()}`,
       externalCode: input.externalCode,
@@ -110,7 +127,8 @@ export async function POST(request: Request) {
       currentLevel: approval.targetLevel,
       reporterId: actor.id,
       assignedApproverId: approval.approverId,
-      timeoutAt: new Date(Date.now() + 2 * 60 * 60 * 1000),
+      qcHoldTimeoutAt,
+      timeoutAt: approval.timeoutAt,
     }).returning();
 
     await tx.insert(scanRecords).values({
@@ -135,24 +153,17 @@ export async function POST(request: Request) {
       .where(and(eq(inventoryItems.skuCode, input.skuCode), eq(inventoryItems.batchNo, input.batchNo)))
       .limit(1);
 
-    if (inventory) {
-      await tx
-        .update(inventoryItems)
-        .set({ lockedQty: inventory.lockedQty + 1, status: 'held', updatedAt: new Date() })
-        .where(eq(inventoryItems.id, inventory.id));
-    } else {
-      await tx.insert(inventoryItems).values({
-        skuCode: input.skuCode,
-        skuName: input.skuCode,
-        batchNo: input.batchNo,
-        availableQty: 0,
-        lockedQty: 1,
-        status: 'held',
-      });
-    }
+    await tx
+      .update(inventoryItems)
+      .set({ lockedQty: (inventory?.lockedQty || 0) + 1, status: 'held', updatedAt: new Date() })
+      .where(eq(inventoryItems.id, inventory.id));
 
-    return [createdTicket];
+    return { result: 'held' as const, ticket: createdTicket };
   });
 
-  return NextResponse.json({ result: 'held', ticket }, { status: 201 });
+  if (result.result === 'duplicate_held') {
+    return NextResponse.json({ result: result.result, message: '该批次已存在未关闭品控工单', record: result.record }, { status: 200 });
+  }
+
+  return NextResponse.json({ result: 'held', ticket: result.ticket }, { status: 201 });
 }

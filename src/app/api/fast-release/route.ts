@@ -1,8 +1,8 @@
 import { db } from '@/lib/db';
-import { approvalRecords, exceptionTickets, inventoryItems, scanRecords } from '@/lib/db/schema';
+import { approvalRecords, exceptionTickets, inventoryItems, inventoryMovements, scanRecords } from '@/lib/db/schema';
 import { canFastRelease, getActor } from '@/lib/auth-context';
-import { isClosedStatus } from '@/lib/ticket-status';
-import { and, eq } from 'drizzle-orm';
+import { CLOSED_STATUSES, isClosedStatus } from '@/lib/ticket-status';
+import { and, eq, notInArray } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -34,6 +34,19 @@ export async function POST(request: Request) {
       .limit(1);
     if (existing.length) return { idempotent: true, record: existing[0] };
 
+    const updated = await tx.update(exceptionTickets).set({
+      status: 'fast_released',
+      description: `${ticket.description}\n快速放行原因：${input.reason}`,
+      closedAt: new Date(),
+      updatedAt: new Date(),
+      version: ticket.version + 1,
+    }).where(and(
+      eq(exceptionTickets.id, ticket.id),
+      eq(exceptionTickets.version, ticket.version),
+      notInArray(exceptionTickets.status, [...CLOSED_STATUSES])
+    )).returning({ id: exceptionTickets.id });
+    if (!updated.length) return { conflict: true as const };
+
     const [record] = await tx.insert(approvalRecords).values({
       ticketId: ticket.id,
       level: ticket.currentLevel,
@@ -54,22 +67,30 @@ export async function POST(request: Request) {
         .where(and(eq(inventoryItems.skuCode, scan.skuCode), eq(inventoryItems.batchNo, scan.batchNo)))
         .limit(1);
       if (inventory) {
+        const lockedQty = Math.max(0, inventory.lockedQty - 1);
         await tx.update(inventoryItems).set({
-          lockedQty: Math.max(0, inventory.lockedQty - 1),
+          lockedQty,
           status: inventory.lockedQty > 1 ? 'held' : 'available',
           updatedAt: new Date(),
         }).where(eq(inventoryItems.id, inventory.id));
+        await tx.insert(inventoryMovements).values({
+          ticketId: ticket.id,
+          approvalRecordId: record.id,
+          skuCode: scan.skuCode,
+          batchNo: scan.batchNo,
+          movementType: 'fast_release_unlock',
+          quantity: 1,
+          beforeQty: inventory.availableQty,
+          afterQty: inventory.availableQty,
+        });
       }
     }
-    await tx.update(exceptionTickets).set({
-      status: 'fast_released',
-      description: `${ticket.description}\n快速放行原因：${input.reason}`,
-      closedAt: new Date(),
-      updatedAt: new Date(),
-      version: ticket.version + 1,
-    }).where(eq(exceptionTickets.id, ticket.id));
     return { idempotent: false, record };
   });
+
+  if ('conflict' in result) {
+    return NextResponse.json({ error: '工单已被处理，请刷新' }, { status: 409 });
+  }
 
   return NextResponse.json({ ok: true, ...result });
 }

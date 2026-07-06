@@ -1,7 +1,7 @@
 import { getActor } from '@/lib/auth-context';
 import { db } from '@/lib/db';
 import { approvalRecords, exceptionTickets } from '@/lib/db/schema';
-import { resolveApproval } from '@/lib/approval-engine';
+import { resolveInitialApproval } from '@/lib/approval-engine';
 import { fetchV2Order } from '@/lib/v2-client';
 import { upsertSnapshot } from '@/lib/snapshots';
 import { and, eq } from 'drizzle-orm';
@@ -51,7 +51,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, { status: 502 });
   }
   const amount = input.amount ?? Number(ticket.amount || 0);
-  const approval = await resolveApproval(amount);
+  const approval = await resolveInitialApproval(amount);
 
   const result = await db.transaction(async (tx) => {
     const updated = await tx.update(exceptionTickets).set({

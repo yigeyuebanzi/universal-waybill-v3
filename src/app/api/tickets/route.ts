@@ -1,10 +1,11 @@
 import { db } from '@/lib/db';
 import { exceptionTickets } from '@/lib/db/schema';
-import { resolveApproval } from '@/lib/approval-engine';
+import { resolveInitialApproval } from '@/lib/approval-engine';
 import { getActor } from '@/lib/auth-context';
 import { fetchV2Order } from '@/lib/v2-client';
 import { upsertSnapshot } from '@/lib/snapshots';
-import { and, desc, eq, ne, sql, type SQL } from 'drizzle-orm';
+import { CLOSED_STATUSES } from '@/lib/ticket-status';
+import { and, desc, eq, notInArray, sql, type SQL } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -90,8 +91,7 @@ export async function POST(request: Request) {
       and(
         eq(exceptionTickets.externalCode, input.externalCode),
         eq(exceptionTickets.exceptionType, input.exceptionType),
-        ne(exceptionTickets.status, 'completed'),
-        ne(exceptionTickets.status, 'closed')
+        notInArray(exceptionTickets.status, [...CLOSED_STATUSES])
       )
     )
     .limit(1);
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: '同一运单同类型异常已有未关闭工单', ticket: duplicate }, { status: 409 });
   }
 
-  const approval = await resolveApproval(input.amount);
+  const approval = await resolveInitialApproval(input.amount);
   const [ticket] = await db
     .insert(exceptionTickets)
     .values({

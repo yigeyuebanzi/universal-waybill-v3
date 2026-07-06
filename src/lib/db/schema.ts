@@ -74,6 +74,7 @@ export const exceptionTickets = pgTable('exception_tickets', {
   assignedApproverId: uuid('assigned_approver_id').references(() => users.id),
   resubmitCount: integer('resubmit_count').notNull().default(0),
   maxResubmitCount: integer('max_resubmit_count').notNull().default(2),
+  qcHoldTimeoutAt: timestamp('qc_hold_timeout_at'),
   timeoutAt: timestamp('timeout_at'),
   version: integer('version').notNull().default(1),
   createdAt: timestamp('created_at').defaultNow(),
@@ -84,6 +85,7 @@ export const exceptionTickets = pgTable('exception_tickets', {
   index('idx_exception_tickets_external_code').on(table.externalCode),
   index('idx_exception_tickets_status').on(table.status),
   index('idx_exception_tickets_timeout_at').on(table.timeoutAt),
+  index('idx_exception_tickets_qc_hold_timeout_at').on(table.qcHoldTimeoutAt),
 ]);
 
 export const approvalRecords = pgTable('approval_records', {
